@@ -5,6 +5,10 @@ import { detectBlock } from "../blockDetector";
 
 const WALMART_BASE_URL = "https://www.walmart.com/ip/";
 
+export interface WalmartScrapeOptions {
+  cookies?: string;
+}
+
 // ── Type helpers ───────────────────────────────────────────────────────────────
 
 type JsonValue = string | number | boolean | null | JsonObject | JsonValue[];
@@ -96,7 +100,8 @@ const MAX_RETRIES = 3;
 
 export async function scrapeWalmart(
   page: Page,
-  sku: string
+  sku: string,
+  _opts: WalmartScrapeOptions = {}
 ): Promise<ProductResult> {
   const result: ProductResult = {
     type: "Walmart",

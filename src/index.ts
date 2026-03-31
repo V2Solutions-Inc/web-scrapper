@@ -9,7 +9,7 @@ import { scrapeAmazon } from "./scrapers/amazon";
 import { utils } from "./utils";
 import { refreshWalmartCookies, WALMART_COOKIE_REFRESH_EVERY } from "./scrapers/walmartCookies";
 import path from "path";
-import { scrapeWalmart } from "./scrapers/walmartFetch";
+import { scrapeWalmart } from "./scrapers/walmart";
 
 chromiumExtra.use(StealthPlugin());
 
@@ -63,7 +63,7 @@ async function main(): Promise<void> {
   let browser: Browser;
   try {
     browser = await chromiumExtra.launch({
-      headless: false,
+      headless: true,
       args: [
         "--no-sandbox",
         "--disable-setuid-sandbox",
@@ -177,9 +177,7 @@ async function main(): Promise<void> {
         logger.warn(entry.SKU, "Challenge page received — refreshing cookies and retrying...");
         walmartCookies = await refreshWalmartCookies(context);
         walmartSkusSinceRefresh = 0;
-        // result = await scrapeWalmart(page, entry.SKU, {
-        //   cookies: walmartCookies,
-        // });
+
         result = await scrapeWalmart(page, entry.SKU, {
           cookies: walmartCookies,
         });
