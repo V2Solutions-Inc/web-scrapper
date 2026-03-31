@@ -1,0 +1,25 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# TypeScript cache
+*.tsbuildinfo
+
+# Logs
+*.log
+
+# Scraper output
+output.csv
+pages/
+
+# Temp/debug files
+*.ts.bak
+
+# macOS
+.DS_Store
+
+# Environment
+.env
+.env.*
