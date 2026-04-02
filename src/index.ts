@@ -35,7 +35,8 @@ async function main(): Promise<void> {
   try {
     allSkus = utils.loadSku(opts.skuFile);
   } catch (err) {
-    logger.error("main", "Failed to load SKU file", err);
+    const message = err instanceof Error ? err.message : String(err);
+    logger.error("main", message);
     process.exit(1);
   }
   logger.info(`Total SKUs loaded: ${allSkus.length}`);

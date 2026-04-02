@@ -29,6 +29,9 @@ export const utils = {
   },
 
   loadSku: (skuFile: string): SKUEntry[] => {
+    if (!fs.existsSync(skuFile)) {
+      throw new Error(`SKU file not found: ${skuFile}\nCreate a skus.json file at the project root. See README for the expected format.`);
+    }
     const raw = fs.readFileSync(skuFile, "utf-8");
     const data: SKUFile = JSON.parse(raw);
     if (!Array.isArray(data.skus)) {
