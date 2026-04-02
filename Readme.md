@@ -147,3 +147,6 @@ npm run run:built
 - **Retry logic**: Failed requests are retried up to 3 times with exponential backoff (3s → 6s → 9s). Retries are skipped for HTTP 404 (product not found) and CAPTCHA (requires human intervention).
 - **PerimeterX / bot-wall detection**: Walmart responses are checked for challenge-page markers (`Robot or human?`, `/blocked`). Detected challenge pages are logged and counted as errors rather than silently returning empty data.
 - **Cookie support**: Supplying `WALMART_COOKIES` passes real PerimeterX session tokens with each Walmart request, significantly reducing blocking risk.
+
+## Limitations
+- The Walmart parsing uses fetch instead of Playwright, because Playwright sessions were getting blocked. Just to test the parsing logic the we need to pass the `WALMART_COOKIES` (copied from browser), to make the request pass from Walmart (not a production solution though).
