@@ -8,9 +8,9 @@ const WALMART_BASE_URL = "https://www.walmart.com/ip/";
 
 /**
  * Load the Walmart product page using the browser.
- * Returns false on bot-wall detection or fatal HTTP errors.
+ * Returns null on success, or an error string on bot-wall detection or fatal HTTP errors.
  */
-async function loadPage(page: Page, sku: string): Promise<boolean> {
+async function loadPage(page: Page, sku: string): Promise<string | null> {
   const url = `${WALMART_BASE_URL}${sku}`;
   logger.step(sku, `Navigating to ${url}`);
 
@@ -24,17 +24,17 @@ async function loadPage(page: Page, sku: string): Promise<boolean> {
 
   if (status === 404) {
     logger.error(sku, "Product page returned 404 – SKU may be invalid or delisted.");
-    return false;
+    return "HTTP 404";
   }
 
   // Bot-wall check
   const { blocked, reason } = await detectBlock(page, "walmart");
   if (blocked) {
     logger.error(sku, `Walmart bot-wall detected (${reason}). Skipping SKU.`);
-    return false;
+    return `BLOCKED: ${reason}`;
   }
 
-  return true;
+  return null;
 }
 
 export async function scrapeWalmartBrowser(
@@ -54,9 +54,9 @@ export async function scrapeWalmartBrowser(
 
   try {
     // ── Step 1: Load page ──────────────────────────────────────────────────
-    const loaded = await loadPage(page, sku);
-    if (!loaded) {
-      result.errorMessage = "Failed to load page (bot-wall or HTTP error)";
+    const loadError = await loadPage(page, sku);
+    if (loadError) {
+      result.errorMessage = loadError;
       return result;
     }
 

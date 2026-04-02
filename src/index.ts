@@ -100,9 +100,6 @@ async function main(): Promise<void> {
     },
   });
 
-  // No route interception — bot detectors (PerimeterX, Akamai) can detect
-  // intercepted routes even when continued, which triggers blocks on Walmart.
-
   // 6. Scrape each SKU
   let successCount = 0;
   let partialCount = 0;

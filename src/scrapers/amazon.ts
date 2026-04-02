@@ -10,12 +10,12 @@ export interface AmazonScrapeOptions {}
 
 /**
  * Load the page from the live Amazon URL.
- * Returns false if the page could not be loaded (HTTP error, CAPTCHA).
+ * Returns null on success, or an error string if the page could not be loaded.
  */
 async function loadPage(
   page: Page,
   sku: string,
-): Promise<boolean> {
+): Promise<string | null> {
   const url = `${AMAZON_BASE_URL}${sku}`;
   logger.step(sku, `Navigating to ${url}`);
 
@@ -29,7 +29,7 @@ async function loadPage(
 
   if (status === 404) {
     logger.error(sku, "Product page returned 404 – SKU may be invalid or delisted.");
-    return false;
+    return "HTTP 404";
   }
 
   if (status === 503 || status === 429) {
@@ -42,10 +42,10 @@ async function loadPage(
   const { blocked, reason } = await detectBlock(page, "amazon");
   if (blocked) {
     logger.error(sku, `Amazon displayed a CAPTCHA / bot-detection page (${reason}). Skipping SKU.`);
-    return false;
+    return `BLOCKED: ${reason}`;
   }
 
-  return true;
+  return null;
 }
 
 export async function scrapeAmazon(
@@ -64,9 +64,9 @@ export async function scrapeAmazon(
 
   try {
     // ── Step 1: Load page ──────────────────────────────────────────────────
-    const loaded = await loadPage(page, sku);
-    if (!loaded) {
-      result.errorMessage = "Failed to load page (HTTP error or CAPTCHA)";
+    const loadError = await loadPage(page, sku);
+    if (loadError) {
+      result.errorMessage = loadError;
       return result;
     }
 

@@ -122,6 +122,7 @@ npm run run:built
 
 - **Stealth plugin**: Amazon scraping uses `puppeteer-extra-plugin-stealth` to appear less bot-like.
 - **Centralized bot-wall detection**: Block detection logic lives in `blockDetector.ts` and is shared across all scrapers. Amazon checks for CAPTCHA URLs, page titles (`robot check`, `access denied`), and CAPTCHA form presence. Walmart checks for challenge URLs (`/blocked`, `robot-or-human`) and body text (`Robot or human?`).
+- **Retry logic**: Failed requests are retried up to 3 times with exponential backoff (3s → 6s → 9s). Retries are skipped for HTTP 404 (product not found) and CAPTCHA (requires human intervention).
 
 ## Limitations
 

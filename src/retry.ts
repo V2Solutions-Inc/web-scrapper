@@ -11,8 +11,8 @@ export interface RetryOptions {
 
 function defaultIsRetryable(result: ProductResult): boolean {
   const msg = result.errorMessage ?? "";
-  if (msg.includes("HTTP 404"))  return false; // product doesn't exist
-  if (msg.includes("CAPTCHA"))   return false; // needs human intervention
+  if (msg.includes("HTTP 404"))    return false; // product doesn't exist
+  if (msg.startsWith("BLOCKED:")) return false; // bot-wall detected, retrying won't help
   return result.status === "error";
 }
 
