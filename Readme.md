@@ -4,29 +4,24 @@ A TypeScript + Playwright scraper that extracts **Price**, **Title**, **Descript
 
 ---
 
-## Project Structure
+## Prerequisites
 
+This project requires **Node.js v18+** and **npm** (bundled with Node).
+
+**Option A — nvm (recommended):**
+```bash
+curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
+nvm install 18
+nvm use 18
 ```
-sku-scraper/
-├── skus.json               ← Input: your list of SKUs
-├── product_data.csv        ← Output: extracted product data (auto-created)
-├── scraper.log             ← Full step-by-step execution log (auto-created)
-├── errors.log              ← Errors and warnings only (auto-created)
-├── src/
-│   ├── index.ts            ← Main entry point
-│   ├── types.ts            ← Shared TypeScript interfaces
-│   ├── logger.ts           ← Console + file logger
-│   ├── csv.ts              ← CSV writer
-│   ├── retry.ts            ← Configurable retry wrapper with exponential backoff
-│   ├── utils.ts            ← Helpers (randomDelay, loadSku, filterSupported, trySelectors)
-│   ├── blockDetector.ts    ← Walmart bot-wall detection
-│   └── scrapers/
-│       ├── amazon.ts           ← Amazon scraper (Playwright browser automation)
-│       ├── walmart.ts          ← Walmart scraper (browser-based, not currently active)
-│       ├── walmartFetch.ts     ← Walmart scraper (HTTP fetch, currently active)
-│       └── walmartCookies.ts   ← PerimeterX cookie refresh via browser warm-up
-├── tsconfig.json
-└── package.json
+
+**Option B — direct download:**
+Visit [nodejs.org](https://nodejs.org) and download the LTS installer for your platform.
+
+Verify your installation:
+```bash
+node --version   # should print v18.x.x or higher
+npm --version
 ```
 
 ---
