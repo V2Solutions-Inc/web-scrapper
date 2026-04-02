@@ -53,15 +53,12 @@ export async function scrapeWalmartBrowser(
   };
 
   try {
-    // ── Step 1: Load page ──────────────────────────────────────────────────
     const loadError = await loadPage(page, sku);
     if (loadError) {
       result.errorMessage = loadError;
       return result;
     }
 
-    // ── Step 2: Title ──────────────────────────────────────────────────────
-    logger.step(sku, "Extracting title");
     result.title = await utils.trySelectors(page, [
       'h1[itemprop="name"]',
       "h1.lh-copy",
@@ -72,9 +69,7 @@ export async function scrapeWalmartBrowser(
       logger.warn(sku, "Title not found – selector may have changed.");
     }
 
-    // ── Step 3: Price ──────────────────────────────────────────────────────
-    // itemprop="price" content attribute holds a bare number (e.g. "24.97")
-    logger.step(sku, "Extracting price");
+    // itemprop="price" holds a bare number (e.g. "24.97")
     const rawPrice = await utils.trySelectors(page, [
       '[itemprop="price"]',
       "span.price-characteristic",
@@ -86,8 +81,6 @@ export async function scrapeWalmartBrowser(
       logger.warn(sku, "Price not found – product may be unavailable or selector changed.");
     }
 
-    // ── Step 4: Description ────────────────────────────────────────────────
-    logger.step(sku, "Extracting description");
     const descParagraphs = await page.$$eval(
       '[data-testid="product-description-content"] p',
       (els) => els.map((el) => (el.textContent ?? "").trim()).filter(Boolean).join(" ")
@@ -105,8 +98,6 @@ export async function scrapeWalmartBrowser(
       }
     }
 
-    // ── Step 5: Number of reviews ──────────────────────────────────────────
-    logger.step(sku, "Extracting number of reviews");
     const rawReviews = await utils.trySelectors(page, [
       '[itemprop="ratingCount"]',
       '[data-testid="item-review-section-link"]',
@@ -119,8 +110,6 @@ export async function scrapeWalmartBrowser(
       logger.warn(sku, "Review count not found.");
     }
 
-    // ── Step 6: Rating ─────────────────────────────────────────────────────
-    logger.step(sku, "Extracting rating");
     result.rating = await utils.trySelectors(page, [
       '[itemprop="ratingValue"]',
       "span.stars-container",
@@ -142,7 +131,6 @@ export async function scrapeWalmartBrowser(
       logger.warn(sku, "Rating not found.");
     }
 
-    // ── Done ───────────────────────────────────────────────────────────────
     const hasAny = result.title || result.price || result.description || result.numberOfReviews;
     result.status = hasAny
       ? result.title && result.price

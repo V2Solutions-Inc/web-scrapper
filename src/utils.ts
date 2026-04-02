@@ -1,5 +1,5 @@
 import * as fs from "fs";
-import { Page } from "playwright-core";
+import { Page } from "playwright";
 import { SKUEntry, SKUFile } from "./types";
 
 export const utils = {

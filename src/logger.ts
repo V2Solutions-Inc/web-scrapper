@@ -27,13 +27,13 @@ export const logger = {
 
   success(sku: string, message: string): void {
     const line = `[${timestamp()}] [OK]    [SKU: ${sku}] ${message}`;
-    console.log(`\x1b[32m${line}\x1b[0m`);  // Green text
+    console.log(`\x1b[32m${line}\x1b[0m`);
     writeToFile(LOG_FILE, line);
   },
 
   warn(sku: string, message: string): void {
     const line = `[${timestamp()}] [WARN]  [SKU: ${sku}] ${message}`;
-    console.warn(`\x1b[33m${line}\x1b[0m`); // Yellow text
+    console.warn(`\x1b[33m${line}\x1b[0m`);
     writeToFile(LOG_FILE, line);
     writeToFile(ERROR_FILE, line);
   },
@@ -42,7 +42,7 @@ export const logger = {
     const detail =
       err instanceof Error ? `${err.message}\n${err.stack ?? ""}` : String(err ?? "");
     const line = `[${timestamp()}] [ERROR] [SKU: ${sku}] ${message}${detail ? " | " + detail : ""}`;
-    console.error(`\x1b[31m${line}\x1b[0m`);  // Red text
+    console.error(`\x1b[31m${line}\x1b[0m`);
     writeToFile(LOG_FILE, line);
     writeToFile(ERROR_FILE, line);
   },

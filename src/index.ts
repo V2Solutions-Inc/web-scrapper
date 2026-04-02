@@ -12,25 +12,19 @@ import { withRetry } from "./retry";
 
 chromiumExtra.use(StealthPlugin());
 
-// ── Configuration ──────────────────────────────────────────────────────────────
+const skuFile = path.resolve(__dirname, "../skus.json");
 
-const opts = {
-  skuFile: path.resolve(__dirname, "../skus.json"),
-};
-
-
-// ── Main ───────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
   logger.info("═══════════════════════════════════════════════════════════════");
   logger.info("  SKU Scraper – starting");
-  logger.info(`  SKU file : ${opts.skuFile}`);
+  logger.info(`  SKU file : ${skuFile}`);
   logger.info("═══════════════════════════════════════════════════════════════");
 
   // 1. Load SKUs
   let allSkus: SKUEntry[];
   try {
-    allSkus = utils.loadSku(opts.skuFile);
+    allSkus = utils.loadSku(skuFile);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     logger.error("main", message);

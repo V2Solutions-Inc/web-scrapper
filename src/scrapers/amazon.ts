@@ -6,8 +6,6 @@ import { detectBlock } from "../blockDetector";
 
 const AMAZON_BASE_URL = "https://www.amazon.com/dp/";
 
-export interface AmazonScrapeOptions {}
-
 /**
  * Load the page from the live Amazon URL.
  * Returns null on success, or an error string if the page could not be loaded.
@@ -63,15 +61,12 @@ export async function scrapeAmazon(
   };
 
   try {
-    // ── Step 1: Load page ──────────────────────────────────────────────────
     const loadError = await loadPage(page, sku);
     if (loadError) {
       result.errorMessage = loadError;
       return result;
     }
 
-    // ── Step 2: Title ──────────────────────────────────────────────────────
-    logger.step(sku, "Extracting title");
     result.title = await utils.trySelectors(page, [
       "#productTitle",
       "span#productTitle",
@@ -85,8 +80,6 @@ export async function scrapeAmazon(
       logger.warn(sku, "Title not found – selector may have changed.");
     }
 
-    // ── Step 3: Price ──────────────────────────────────────────────────────
-    logger.step(sku, "Extracting price");
     const whole = await utils.trySelectors(page, ["span.a-price-whole"]);
     const fraction = await utils.trySelectors(page, ["span.a-price-fraction"]);
     if (whole) {
@@ -100,9 +93,6 @@ export async function scrapeAmazon(
     } else {
       logger.warn(sku, "Price not found – product may be unavailable or selector changed.");
     }
-
-    // ── Step 4: Description ────────────────────────────────────────────────
-    logger.step(sku, "Extracting description");
 
     const bullets = await page.$$eval(
       "#feature-bullets ul li:not(.aok-hidden) span.a-list-item",
@@ -121,8 +111,6 @@ export async function scrapeAmazon(
       }
     }
 
-    // ── Step 5: Number of reviews ──────────────────────────────────────────
-    logger.step(sku, "Extracting number of reviews");
     result.numberOfReviews = await utils.trySelectors(page, [
       "#acrCustomerReviewText",
     ]);
@@ -134,8 +122,6 @@ export async function scrapeAmazon(
       logger.warn(sku, "Review count not found.");
     }
 
-    // ── Step 6: Rating ─────────────────────────────────────────────────────
-    logger.step(sku, "Extracting rating");
     result.rating = await utils.trySelectors(page, [
       'span[data-hook="rating-out-of-text"]',
       "#acrPopover .a-icon-alt",
@@ -146,7 +132,6 @@ export async function scrapeAmazon(
       logger.warn(sku, "Rating not found.");
     }
 
-    // ── Done ───────────────────────────────────────────────────────────────
     const hasAny = result.title || result.price || result.description || result.numberOfReviews;
     result.status = hasAny
       ? result.title && result.price
