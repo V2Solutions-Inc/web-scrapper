@@ -11,6 +11,7 @@ const CSV_HEADER = [
   { id: "price",           title: "Price" },
   { id: "description",     title: "Description" },
   { id: "numberOfReviews", title: "Number of Reviews" },
+  { id: "rating",          title: "Rating" },
   { id: "status",          title: "Status" },
   { id: "errorMessage",    title: "Error" },
 ];

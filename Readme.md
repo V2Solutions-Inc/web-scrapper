@@ -1,6 +1,6 @@
 # SKU Scraper
 
-A TypeScript + Playwright scraper that extracts **Price**, **Title**, **Description**, and **Number of Reviews** for each product SKU from supported platforms (Amazon and Walmart).
+A TypeScript + Playwright scraper that extracts **Price**, **Title**, **Description**, **Rating**, and **Number of Reviews** for each product SKU from supported platforms (Amazon and Walmart).
 
 ---
 
@@ -9,6 +9,7 @@ A TypeScript + Playwright scraper that extracts **Price**, **Title**, **Descript
 This project requires **Node.js v18+** and **npm** (bundled with Node).
 
 **Option A — nvm (recommended):**
+
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 nvm install 18
@@ -19,6 +20,7 @@ nvm use 18
 Visit [nodejs.org](https://nodejs.org) and download the LTS installer for your platform.
 
 Verify your installation:
+
 ```bash
 node --version   # should print v18.x.x or higher
 npm --version
@@ -39,24 +41,6 @@ npm install
 ```bash
 npx playwright install chromium
 ```
-
-### 3. (Optional) Set Walmart cookies
-
-For more reliable Walmart scraping, provide a real browser cookie string:
-
-```bash
-export WALMART_COOKIES='<your cookie string>'
-```
-
-How to get it:
-1. Open Chrome and browse to walmart.com
-2. DevTools → Network → click any walmart.com request
-3. Right-click → Copy → Copy as cURL
-4. Extract the value after `-b '...'`
-
-Without this, the scraper will still attempt Walmart requests — it may succeed on clean residential IPs.
-
----
 
 ## Usage
 
@@ -93,20 +77,20 @@ npm run run:built
 
 ## Supported Platforms
 
-| Platform | Method | Notes |
-|----------|--------|-------|
-| Amazon   | Playwright browser automation | Uses stealth plugin; blocks images/fonts/media for speed |
-| Walmart  | HTTP fetch (no browser) | Reads `__NEXT_DATA__` JSON from page HTML; optional cookie support for PerimeterX tokens |
+| Platform | Method                        | Notes                                                                   |
+| -------- | ----------------------------- | ----------------------------------------------------------------------- |
+| Amazon   | Playwright browser automation | Uses stealth plugin; blocks images/fonts/media for speed                |
+| Walmart  | Playwright browser automation | Full browser rendering to bypass bot detection; optional cookie support |
 
 ---
 
 ## Output Files
 
-| File                | Description                          |
-| -------------       | ------------------------------------ |
-| `product_data.csv`  | All extracted product data           |
-| `scraper.log`       | Full execution trace with timestamps |
-| `errors.log`        | Warnings and errors only             |
+| File               | Description                          |
+| ------------------ | ------------------------------------ |
+| `product_data.csv` | All extracted product data           |
+| `scraper.log`      | Full execution trace with timestamps |
+| `errors.log`       | Warnings and errors only             |
 
 ### CSV Columns
 
@@ -118,6 +102,7 @@ npm run run:built
 | Price             | Current price                          |
 | Description       | Feature bullets or product description |
 | Number of Reviews | Total review count                     |
+| Rating            | Average star rating (e.g. `4.0`)       |
 | Status            | `success` / `partial` / `error`        |
 | Error             | Error message if scraping failed       |
 
@@ -136,12 +121,10 @@ npm run run:built
 ## Anti-Detection & Reliability
 
 - **Stealth plugin**: Amazon scraping uses `puppeteer-extra-plugin-stealth` to appear less bot-like.
-- **Realistic headers**: Requests spoof Chrome 146 on macOS with matching `sec-ch-ua`, `sec-fetch-*`, and `user-agent` headers.
-- **Request delay**: A randomized ~2.5s delay is added between each request to reduce rate-limiting risk.
-- **Resource blocking**: Images, fonts, and media are blocked for Amazon page loads; all resources are allowed for Walmart to avoid triggering bot detection.
-- **Retry logic**: Failed requests are retried up to 3 times with exponential backoff (3s → 6s → 9s). Retries are skipped for HTTP 404 (product not found) and CAPTCHA (requires human intervention).
-- **PerimeterX / bot-wall detection**: Walmart responses are checked for challenge-page markers (`Robot or human?`, `/blocked`). Detected challenge pages are logged and counted as errors rather than silently returning empty data.
-- **Cookie support**: Supplying `WALMART_COOKIES` passes real PerimeterX session tokens with each Walmart request, significantly reducing blocking risk.
+- **Centralized bot-wall detection**: Block detection logic lives in `blockDetector.ts` and is shared across all scrapers. Amazon checks for CAPTCHA URLs, page titles (`robot check`, `access denied`), and CAPTCHA form presence. Walmart checks for challenge URLs (`/blocked`, `robot-or-human`) and body text (`Robot or human?`).
 
 ## Limitations
-- The Walmart parsing uses fetch instead of Playwright, because Playwright sessions were getting blocked. Just to test the parsing logic the we need to pass the `WALMART_COOKIES` (copied from browser), to make the request pass from Walmart (not a production solution though).
+
+- Both scrapers rely on DOM selectors that Walmart and Amazon can change at any time. If data stops being extracted, inspect the live page and update the selectors in `walmartBrowser.ts` or `amazon.ts`.
+- Walmart's browser scraping may still be blocked on datacenter IPs. For reliable results, run on a residential IP.
+- Does not support concurrency. SKUs are scraped one at a time.

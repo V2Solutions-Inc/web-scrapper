@@ -2,6 +2,7 @@ import { Page } from "playwright";
 import { logger } from "../logger";
 import { ProductResult } from "../types";
 import { utils } from "../utils";
+import { detectBlock } from "../blockDetector";
 
 const AMAZON_BASE_URL = "https://www.amazon.com/dp/";
 
@@ -38,12 +39,9 @@ async function loadPage(
 
   // CAPTCHA / bot-wall check
   logger.step(sku, "Checking for CAPTCHA or bot-wall");
-  const bodyText = await page.locator("body").textContent();
-  if (
-    bodyText?.toLowerCase().includes("enter the characters you see below") ||
-    bodyText?.toLowerCase().includes("sorry, we just need to make sure")
-  ) {
-    logger.error(sku, "Amazon displayed a CAPTCHA / bot-detection page. Skipping SKU.");
+  const { blocked, reason } = await detectBlock(page, "amazon");
+  if (blocked) {
+    logger.error(sku, `Amazon displayed a CAPTCHA / bot-detection page (${reason}). Skipping SKU.`);
     return false;
   }
 
@@ -89,9 +87,13 @@ export async function scrapeAmazon(
 
     // ── Step 3: Price ──────────────────────────────────────────────────────
     logger.step(sku, "Extracting price");
-    result.price = await utils.trySelectors(page, [
-      ".a-price .a-offscreen",
-    ]);
+    const whole = await utils.trySelectors(page, ["span.a-price-whole"]);
+    const fraction = await utils.trySelectors(page, ["span.a-price-fraction"]);
+    if (whole) {
+      result.price = `$${whole.replace(/\.$/, "")}.${fraction || "00"}`;
+    } else {
+      result.price = await utils.trySelectors(page, [".a-price .a-offscreen"]);
+    }
 
     if (result.price) {
       logger.step(sku, `Price found: ${result.price}`);
@@ -102,19 +104,21 @@ export async function scrapeAmazon(
     // ── Step 4: Description ────────────────────────────────────────────────
     logger.step(sku, "Extracting description");
 
-    const featureBullets = page.locator("#feature-bullets ul li span.a-list-item");
-    const bulletCount = await featureBullets.count();
+    const bullets = await page.$$eval(
+      "#feature-bullets ul li:not(.aok-hidden) span.a-list-item",
+      (els) => els.map((el) => (el.textContent ?? "").trim()).filter(Boolean).join(" | ")
+    ).catch(() => "");
 
-    if (bulletCount > 0) {
-      const bullets: string[] = [];
-      for (let i = 0; i < bulletCount; i++) {
-        const text = (await featureBullets.nth(i).textContent())?.trim() ?? "";
-        if (text) bullets.push(`• ${text}`);
-      }
-      result.description = bullets.join("\n");
-      logger.step(sku, `Description extracted from ${bulletCount} feature bullet(s).`);
+    if (bullets) {
+      result.description = bullets;
+      logger.step(sku, "Description extracted from feature bullets.");
     } else {
-      logger.warn(sku, "Description not found.");
+      result.description = await utils.trySelectors(page, ["#productDescription p"]);
+      if (result.description) {
+        logger.step(sku, "Description extracted from #productDescription fallback.");
+      } else {
+        logger.warn(sku, "Description not found.");
+      }
     }
 
     // ── Step 5: Number of reviews ──────────────────────────────────────────
@@ -128,6 +132,18 @@ export async function scrapeAmazon(
       logger.step(sku, `Reviews count: ${result.numberOfReviews}`);
     } else {
       logger.warn(sku, "Review count not found.");
+    }
+
+    // ── Step 6: Rating ─────────────────────────────────────────────────────
+    logger.step(sku, "Extracting rating");
+    result.rating = await utils.trySelectors(page, [
+      'span[data-hook="rating-out-of-text"]',
+      "#acrPopover .a-icon-alt",
+    ]);
+    if (result.rating) {
+      logger.step(sku, `Rating found: ${result.rating}`);
+    } else {
+      logger.warn(sku, "Rating not found.");
     }
 
     // ── Done ───────────────────────────────────────────────────────────────

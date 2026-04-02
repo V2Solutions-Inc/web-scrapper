@@ -1,24 +1,45 @@
 import { Page } from "playwright";
 import { logger } from "../logger";
 import { ProductResult } from "../types";
+import { utils } from "../utils";
 import { detectBlock } from "../blockDetector";
-import { parseNextData } from "./walmartHelpers";
 
 const WALMART_BASE_URL = "https://www.walmart.com/ip/";
 
-export interface WalmartScrapeOptions {
-  cookies?: string;
+/**
+ * Load the Walmart product page using the browser.
+ * Returns false on bot-wall detection or fatal HTTP errors.
+ */
+async function loadPage(page: Page, sku: string): Promise<boolean> {
+  const url = `${WALMART_BASE_URL}${sku}`;
+  logger.step(sku, `Navigating to ${url}`);
+
+  const response = await page.goto(url, {
+    waitUntil: "domcontentloaded",
+    timeout: 30_000,
+  });
+
+  const status = response?.status() ?? 0;
+  logger.step(sku, `Page responded with HTTP ${status}`);
+
+  if (status === 404) {
+    logger.error(sku, "Product page returned 404 – SKU may be invalid or delisted.");
+    return false;
+  }
+
+  // Bot-wall check
+  const { blocked, reason } = await detectBlock(page, "walmart");
+  if (blocked) {
+    logger.error(sku, `Walmart bot-wall detected (${reason}). Skipping SKU.`);
+    return false;
+  }
+
+  return true;
 }
 
-// ── Main scraper ───────────────────────────────────────────────────────────────
-
-const MAX_RETRIES = 3;
-
-
-export async function scrapeWalmart(
+export async function scrapeWalmartBrowser(
   page: Page,
   sku: string,
-  _opts: WalmartScrapeOptions = {}
 ): Promise<ProductResult> {
   const result: ProductResult = {
     type: "Walmart",
@@ -27,99 +48,98 @@ export async function scrapeWalmart(
     price: "",
     description: "",
     numberOfReviews: "",
+    rating: "",
     status: "error",
   };
 
   try {
-    // ── Step 1: Navigate (follow the 301 automatically) ────────────────────
-    // Playwright follows redirects by default, so /ip/<ID> resolves to the
-    // full slug URL transparently.
-    const shortUrl = `${WALMART_BASE_URL}${sku}`;
-    logger.step(sku, `Navigating to ${shortUrl}`);
-
-    const response = await page.goto(shortUrl, {
-      waitUntil: "domcontentloaded",
-      timeout: 30_000,
-    });
-
-    const finalUrl = page.url();
-    const status = response?.status() ?? 0;
-    logger.step(sku, `Resolved to: ${finalUrl}`);
-    logger.step(sku, `HTTP status: ${status}`);
-
-    // 🔍 Block detection
-      const blockCheck = await detectBlock(page);
-
-    if (blockCheck.blocked) {
-      logger.error(sku, `Walmart bot-wall detected (${blockCheck.reason}). Consider using a proxy.`);
-      result.errorMessage = "Blocked by Walmart bot-wall";
+    // ── Step 1: Load page ──────────────────────────────────────────────────
+    const loaded = await loadPage(page, sku);
+    if (!loaded) {
+      result.errorMessage = "Failed to load page (bot-wall or HTTP error)";
       return result;
     }
 
-    if (status === 404) {
-      logger.error(sku, "Product page returned 404 – SKU may be invalid or delisted.");
-      result.errorMessage = "HTTP 404 – product not found";
-      return result;
-    }
-
-    // ── Step 2: Extract __NEXT_DATA__ from the page HTML ───────────────────
-    logger.step(sku, "Looking for __NEXT_DATA__ script tag");
-
-    const nextDataJson = await page.evaluate(() => {
-      const el = document.getElementById("__NEXT_DATA__");
-      return el ? el.textContent : null;
-    });
-
-    if (!nextDataJson) {
-      logger.error(sku, "__NEXT_DATA__ script tag not found. Page may not have loaded correctly.");
-      result.errorMessage = "__NEXT_DATA__ not found";
-      return result;
-    }
-
-    logger.step(sku, `__NEXT_DATA__ found (${(nextDataJson.length / 1024).toFixed(1)} KB)`);
-
-    // ── Step 3: Parse JSON ─────────────────────────────────────────────────
-    logger.step(sku, "Parsing __NEXT_DATA__ JSON");
-    let json: unknown;
-    try {
-      json = JSON.parse(nextDataJson);
-    } catch (err) {
-      logger.error(sku, "Failed to parse __NEXT_DATA__ as JSON", err);
-      result.errorMessage = "Invalid __NEXT_DATA__ JSON";
-      return result;
-    }
-
-    // ── Step 4: Extract fields ─────────────────────────────────────────────
-    logger.step(sku, "Extracting fields from __NEXT_DATA__");
-    const { title, price, description, numberOfReviews } = parseNextData(json);
-
-    result.title = title;
-    result.price = price;
-    result.description = description;
-    result.numberOfReviews = numberOfReviews;
-
+    // ── Step 2: Title ──────────────────────────────────────────────────────
+    logger.step(sku, "Extracting title");
+    result.title = await utils.trySelectors(page, [
+      'h1[itemprop="name"]',
+      "h1.lh-copy",
+    ]);
     if (result.title) {
-      logger.step(sku, `Title: "${result.title.substring(0, 60)}..."`);
+      logger.step(sku, `Title found: "${result.title.substring(0, 60)}..."`);
     } else {
-      logger.warn(sku, "Title not found in __NEXT_DATA__.");
+      logger.warn(sku, "Title not found – selector may have changed.");
     }
 
+    // ── Step 3: Price ──────────────────────────────────────────────────────
+    // itemprop="price" content attribute holds a bare number (e.g. "24.97")
+    logger.step(sku, "Extracting price");
+    const rawPrice = await utils.trySelectors(page, [
+      '[itemprop="price"]',
+      "span.price-characteristic",
+    ]);
+    result.price = rawPrice && !rawPrice.startsWith("$") ? `$${rawPrice}` : rawPrice;
     if (result.price) {
-      logger.step(sku, `Price: ${result.price}`);
+      logger.step(sku, `Price found: ${result.price}`);
     } else {
-      logger.warn(sku, "Price not found in __NEXT_DATA__.");
+      logger.warn(sku, "Price not found – product may be unavailable or selector changed.");
     }
 
-    if (result.description) {
-      logger.step(sku, "Description extracted.");
+    // ── Step 4: Description ────────────────────────────────────────────────
+    logger.step(sku, "Extracting description");
+    const descParagraphs = await page.$$eval(
+      '[data-testid="product-description-content"] p',
+      (els) => els.map((el) => (el.textContent ?? "").trim()).filter(Boolean).join(" ")
+    ).catch(() => "");
+
+    if (descParagraphs) {
+      result.description = descParagraphs.replace(/\s+/g, " ").trim();
+      logger.step(sku, "Description extracted from product-description-content.");
     } else {
-      logger.warn(sku, "Description not found.");
+      result.description = await utils.trySelectors(page, [".about-desc"]);
+      if (result.description) {
+        logger.step(sku, "Description extracted from .about-desc fallback.");
+      } else {
+        logger.warn(sku, "Description not found.");
+      }
     }
 
+    // ── Step 5: Number of reviews ──────────────────────────────────────────
+    logger.step(sku, "Extracting number of reviews");
+    const rawReviews = await utils.trySelectors(page, [
+      '[itemprop="ratingCount"]',
+      '[data-testid="item-review-section-link"]',
+      "span.review-count",
+    ]);
+    result.numberOfReviews = rawReviews.replace(/\D/g, "");
     if (result.numberOfReviews) {
-      logger.step(sku, `Reviews: ${result.numberOfReviews}`);
+      logger.step(sku, `Reviews count: ${result.numberOfReviews}`);
     } else {
       logger.warn(sku, "Review count not found.");
+    }
+
+    // ── Step 6: Rating ─────────────────────────────────────────────────────
+    logger.step(sku, "Extracting rating");
+    result.rating = await utils.trySelectors(page, [
+      '[itemprop="ratingValue"]',
+      "span.stars-container",
+    ]);
+    if (!result.rating) {
+      // Fall back: parse rating from the "X stars out of N reviews" span
+      // document.querySelector( '[data-testid="reviews-and-ratings"] span.ld_FS')?.textContent
+      result.rating = await page.$eval(
+        '[data-testid="reviews-and-ratings"] span.ld_FS',
+        (el) => {
+          const m = (el.textContent ?? "").match(/^(\d[\d.]*)\s+stars?/i);
+          return m ? m[1] : "";
+        }
+      ).catch(() => "");
+    }
+    if (result.rating) {
+      logger.step(sku, `Rating found: ${result.rating}`);
+    } else {
+      logger.warn(sku, "Rating not found.");
     }
 
     // ── Done ───────────────────────────────────────────────────────────────
@@ -135,7 +155,7 @@ export async function scrapeWalmart(
     } else if (result.status === "partial") {
       logger.warn(sku, "Some fields could not be extracted – partial result saved.");
     } else {
-      logger.error(sku, "No data could be extracted from __NEXT_DATA__.");
+      logger.error(sku, "No data could be extracted.");
       result.errorMessage = "No data extracted";
     }
   } catch (err) {

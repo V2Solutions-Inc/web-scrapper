@@ -14,6 +14,7 @@ export interface ProductResult {
   price: string;
   description: string;
   numberOfReviews: string;
+  rating?: string;
   status: "success" | "partial" | "error";
   errorMessage?: string;
 }
