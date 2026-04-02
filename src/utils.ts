@@ -27,6 +27,7 @@ export const utils = {
     }
     return "";
   },
+
   loadSku: (skuFile: string): SKUEntry[] => {
     const raw = fs.readFileSync(skuFile, "utf-8");
     const data: SKUFile = JSON.parse(raw);
@@ -35,6 +36,7 @@ export const utils = {
     }
     return data.skus;
   },
+
   filterSupported(skus: SKUEntry[]): { supported: SKUEntry[]; skipped: SKUEntry[] } {
     const SUPPORTED_TYPES = new Set(["amazon", "walmart"]);
     const supported: SKUEntry[] = [];

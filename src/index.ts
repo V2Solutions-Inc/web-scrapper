@@ -9,7 +9,8 @@ import { scrapeAmazon } from "./scrapers/amazon";
 import { utils } from "./utils";
 import { refreshWalmartCookies, WALMART_COOKIE_REFRESH_EVERY } from "./scrapers/walmartCookies";
 import path from "path";
-import { scrapeWalmart } from "./scrapers/walmart";
+import { scrapeWalmart } from "./scrapers/walmartFetch";
+import { withRetry } from "./retry";
 
 chromiumExtra.use(StealthPlugin());
 
@@ -128,12 +129,12 @@ async function main(): Promise<void> {
 
   // 6. Walmart cookie state
   // Auto-refresh via browser warm-up — used when no env var is set
-  let walmartCookies: string = "";
+  let walmartCookies: string = process.env.WALMART_COOKIES || "";
   let walmartSkusSinceRefresh = 0;
 
   const hasWalmartSkus = supported.some((e) => e.Type.toLowerCase() === "walmart");
 
-  if (hasWalmartSkus) {
+  if (hasWalmartSkus && !walmartCookies) {
     // Pre-warm: visit walmart.com homepage so PerimeterX issues fresh tokens
     // before we start scraping product pages.
     logger.info("Walmart: no cookies set — performing browser warm-up to get fresh session tokens...");
@@ -154,36 +155,11 @@ async function main(): Promise<void> {
 
     if (entry.Type.toLowerCase() === "amazon") {
 
-      result = await scrapeAmazon(page, entry.SKU);
+      result = await withRetry(() => scrapeAmazon(page, entry.SKU));
 
     } else if (entry.Type.toLowerCase() === "walmart") {
 
-      // Periodic refresh — every N SKUs when not using manual cookies
-      const shouldRefresh = walmartSkusSinceRefresh > 0 &&
-        walmartSkusSinceRefresh % WALMART_COOKIE_REFRESH_EVERY === 0;
-
-      if (shouldRefresh) {
-        logger.info(`Walmart: refreshing cookies after ${walmartSkusSinceRefresh} SKUs...`);
-        walmartCookies = await refreshWalmartCookies(context);
-        walmartSkusSinceRefresh = 0;
-      }
-
-      result = await scrapeWalmart(page, entry.SKU, {
-        cookies: walmartCookies,
-      });
-
-      // If challenged, do one immediate refresh and retry before giving up
-      if (result.errorMessage?.includes("PerimeterX challenge")) {
-        logger.warn(entry.SKU, "Challenge page received — refreshing cookies and retrying...");
-        walmartCookies = await refreshWalmartCookies(context);
-        walmartSkusSinceRefresh = 0;
-
-        result = await scrapeWalmart(page, entry.SKU, {
-          cookies: walmartCookies,
-        });
-      }
-
-      walmartSkusSinceRefresh++;
+      result = await withRetry(() => scrapeWalmart(page, entry.SKU, { cookies: walmartCookies }));
 
     } else {
       logger.warn(entry.SKU, `No scraper available for type "${entry.Type}"`);
