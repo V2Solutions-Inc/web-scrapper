@@ -11,9 +11,7 @@ dist/
 *.log
 
 # Scraper output
-output.csv
 product_data.csv
-pages/
 
 # Temp/debug files
 *.ts.bak

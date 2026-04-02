@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import { Page } from "playwright";
-import { SKUEntry, SKUFile } from "./types";
+import { SKUEntry, SKUFile, ProductResult } from "./types";
+import { logger } from "./logger";
 
 export const utils = {
   delay(ms: number): Promise<void> {
@@ -38,6 +39,24 @@ export const utils = {
       throw new Error(`"skus" key is missing or not an array in ${skuFile}`);
     }
     return data.skus;
+  },
+
+  resolveStatus(result: ProductResult): void {
+    const hasAny = result.title || result.price || result.description || result.numberOfReviews;
+    result.status = hasAny
+      ? result.title && result.price
+        ? "success"
+        : "partial"
+      : "error";
+
+    if (result.status === "success") {
+      logger.success(result.sku, "All fields extracted successfully.");
+    } else if (result.status === "partial") {
+      logger.warn(result.sku, "Some fields could not be extracted – partial result saved.");
+    } else {
+      logger.error(result.sku, "No data could be extracted.");
+      result.errorMessage = "No data extracted";
+    }
   },
 
   filterSupported(skus: SKUEntry[]): { supported: SKUEntry[]; skipped: SKUEntry[] } {

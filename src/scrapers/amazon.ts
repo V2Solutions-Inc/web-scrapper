@@ -132,21 +132,7 @@ export async function scrapeAmazon(
       logger.warn(sku, "Rating not found.");
     }
 
-    const hasAny = result.title || result.price || result.description || result.numberOfReviews;
-    result.status = hasAny
-      ? result.title && result.price
-        ? "success"
-        : "partial"
-      : "error";
-
-    if (result.status === "success") {
-      logger.success(sku, "All fields extracted successfully.");
-    } else if (result.status === "partial") {
-      logger.warn(sku, "Some fields could not be extracted – partial result saved.");
-    } else {
-      logger.error(sku, "No data could be extracted.");
-      result.errorMessage = "No data extracted";
-    }
+    utils.resolveStatus(result);
   } catch (err) {
     logger.error(sku, "Unexpected error during scraping", err);
     result.errorMessage = err instanceof Error ? err.message : String(err);
